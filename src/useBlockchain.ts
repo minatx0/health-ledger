@@ -36,20 +36,20 @@ const useWeb3 = () => {
   useEffect(() => {
     const loadBlockchainData = async () => {
       try {
-        if (window.ethereum) {
-          const web3 = new Web3(window.ethereum);
-          await window.ethereum.enable();
-
-          const accounts = await web3.eth.getAccounts();
-          if (accounts.length === 0) {
-            throw new Error('No accounts. Please connect to MetaMask.');
-          }
-
-          const contract = new web3.eth.Contract(MEDICAL_RECORD_ABI, CONTRACT_ADDRESS);
-          setState((prev) => ({ ...prev, web3, accounts, contract, isLoading: false }));
-        } else {
-          throw new Error('Please install MetaMask!');
+        if (!window.ethereum) {
+          throw new Error('Ethereum object not found in window. Please install MetaMask!');
         }
+
+        const web3 = new Web3(window.ethereum);
+        await window.ethereum.enable();
+
+        const accounts = await web3.eth.getAccounts();
+        if (accounts.length === 0) {
+          throw new Error('No accounts found. Please connect to MetaMask.');
+        }
+
+        const contract = new web3.eth.Contract(MEDICAL_RECORD_ABI, CONTRACT_ADDRESS);
+        setState((prev) => ({ ...prev, web3, accounts, contract, isLoading: false }));
       } catch (error) {
         setState((prev) => ({ ...prev, error: error as Error, isLoading: false }));
       }
@@ -60,17 +60,19 @@ const useWeb3 = () => {
 
   const sendTransaction = async (methodName: string, params: any[], value = '0') => {
     if (!state.web3 || !state.accounts) {
-      throw new Error('Web3 or accounts not initialized');
+      throw new Error('Web3 or accounts not initialized.');
     }
 
     let result = null;
     try {
-      const gas = await state.contract.methods[methodName](...params)
+      const gasEstimate = await state.contract.methods[methodName](...params)
                                      .estimateGas({ from: state.accounts[0] });
       result = await state.contract.methods[methodName](...params)
-                                  .send({ from: state.accounts[0], gas, value });
+                                  .send({ from: state.accounts[0], gas: gasEstimate, value });
     } catch (error) {
+      console.error(`Error sending transaction for method ${methodName}: ${error}`);
       setState((prev) => ({ ...prev, error: error as Error }));
+      throw error; // Rethrowing error after state update to allow calling code to handle it as well
     }
 
     return result;
@@ -78,14 +80,16 @@ const useWeb3 = () => {
 
   const callContract = async (methodName: string, params: any[]) => {
     if (!state.contract) {
-      throw new Error('Contract not initialized');
+      throw new Error('Contract not initialized.');
     }
 
     let result = null;
     try {
       result = await state.contract.methods[methodName](...params).call();
     } catch (error) {
+      console.error(`Error calling contract method ${methodName}: ${error}`);
       setState((prev) => ({ ...prev, error: error as Error }));
+      throw error; // Rethrowing error after state update to allow calling code to handle it as well
     }
 
     return result;
