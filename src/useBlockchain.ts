@@ -3,11 +3,11 @@ import Web3 from 'web3';
 import { AbiItem } from 'web3-utils';
 
 interface Web3State {
-  web3: Web3 | null;
-  accounts: string[] | null;
-  contract: any; // Consider defining a more specific type for your contract
-  error: Error | null;
-  isLoading: boolean;
+  web3Instance: Web3 | null;
+  userAccounts: string[] | null;
+  medicalRecordContract: any; 
+  connectionError: Error | null;
+  isLoadingBlockchainData: boolean;
 }
 
 const MEDICAL_RECORD_ABI: AbiItem[] = [
@@ -24,17 +24,17 @@ const MEDICAL_RECORD_ABI: AbiItem[] = [
 
 const CONTRACT_ADDRESS: string = process.env.REACT_APP_MEDICAL_RECORD_CONTRACT_ADDRESS || '';
 
-const useWeb3 = () => {
+const useBlockchain = () => {
   const [state, setState] = useState<Web3State>({
-    web3: null,
-    accounts: null,
-    contract: null,
-    error: null,
-    isLoading: true,
+    web3Instance: null,
+    userAccounts: null,
+    medicalRecordContract: null,
+    connectionError: null,
+    isLoadingBlockchainData: true,
   });
 
   useEffect(() => {
-    const loadBlockchainData = async () => {
+    const initBlockchainConnection = async () => {
       try {
         if (!window.ethereum) {
           throw new Error('Ethereum object not found in window. Please install MetaMask!');
@@ -49,57 +49,57 @@ const useWeb3 = () => {
         }
 
         const contract = new web3.eth.Contract(MEDICAL_RECORD_ABI, CONTRACT_ADDRESS);
-        setState((prev) => ({ ...prev, web3, accounts, contract, isLoading: false }));
+        setState((prev) => ({ ...prev, web3Instance: web3, userAccounts: accounts, medicalRecordContract: contract, isLoadingBlockchainData: false }));
       } catch (error) {
-        setState((prev) => ({ ...prev, error: error as Error, isLoading: false }));
+        setState((prev) => ({ ...prev, connectionError: error as Error, isLoadingBlockchainData: false }));
       }
     };
 
-    loadBlockchainData();
+    initBlockchainConnection();
   }, []);
 
-  const sendTransaction = async (methodName: string, params: any[], value = '0') => {
-    if (!state.web3 || !state.accounts) {
-      throw new Error('Web3 or accounts not initialized.');
+  const executeContractTransaction = async (methodName: string, parameters: any[], etherValue = '0') => {
+    if (!state.web3Instance || !state.userAccounts) {
+      throw new Error('Web3 instance or user accounts not initialized.');
     }
 
-    let result = null;
+    let transactionResult = null;
     try {
-      const gasEstimate = await state.contract.methods[methodName](...params)
-                                     .estimateGas({ from: state.accounts[0] });
-      result = await state.contract.methods[methodName](...params)
-                                  .send({ from: state.accounts[0], gas: gasEstimate, value });
+      const gasEstimate = await state.medicalRecordContract.methods[methodName](...parameters)
+                                     .estimateGas({ from: state.userAccounts[0] });
+      transactionResult = await state.medicalRecordContract.methods[methodName](...parameters)
+                                     .send({ from: state.userAccounts[0], gas: gasEstimate, value: etherValue });
     } catch (error) {
       console.error(`Error sending transaction for method ${methodName}: ${error}`);
-      setState((prev) => ({ ...prev, error: error as Error }));
-      throw error; // Rethrowing error after state update to allow calling code to handle it as well
+      setState((prev) => ({ ...prev, connectionError: error as Error }));
+      throw error;
     }
 
-    return result;
+    return transactionResult;
   };
 
-  const callContract = async (methodName: string, params: any[]) => {
-    if (!state.contract) {
-      throw new Error('Contract not initialized.');
+  const invokeContractQuery = async (methodName: string, parameters: any[]) => {
+    if (!state.medicalRecordContract) {
+      throw new Error('Medical record contract not initialized.');
     }
 
-    let result = null;
+    let queryResult = null;
     try {
-      result = await state.contract.methods[methodName](...params).call();
+      queryResult = await state.medicalRecordContract.methods[methodName](...parameters).call();
     } catch (error) {
-      console.error(`Error calling contract method ${methodName}: ${error}`);
-      setState((prev) => ({ ...prev, error: error as Error }));
-      throw error; // Rethrowing error after state update to allow calling code to handle it as well
+      console.error(`Error invoking contract method ${methodName}: ${error}`);
+      setState((prev) => ({ ...prev, connectionError: error as Error }));
+      throw error;
     }
 
-    return result;
+    return queryResult;
   };
 
   return {
     ...state,
-    sendTransaction,
-    callContract,
+    executeContractTransaction,
+    invokeContractQuery,
   };
 };
 
-export default useWeb3;
+export default useBlockchain;
