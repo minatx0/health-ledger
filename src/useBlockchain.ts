@@ -35,11 +35,13 @@ const useBlockchain = () => {
 
   useEffect(() => {
     const initBlockchainConnection = async () => {
-      try {
-        if (!window.ethereum) {
-          throw new Error('Ethereum object not found in window. Please install MetaMask!');
-        }
+      if (!window.ethereum) {
+        const error = new Error('Ethereum object not found in window. Please install MetaMask!');
+        setState((prev) => ({ ...prev, connectionError: error, isLoadingBlockchainData: false }));
+        return;
+      }
 
+      try {
         const web3 = new Web3(window.ethereum);
         await window.ethereum.enable();
 
@@ -51,7 +53,7 @@ const useBlockchain = () => {
         const contract = new web3.eth.Contract(MEDICAL_RECORD_ABI, CONTRACT_ADDRESS);
         setState((prev) => ({ ...prev, web3Instance: web3, userAccounts: accounts, medicalRecordContract: contract, isLoadingBlockchainData: false }));
       } catch (error) {
-        setState((prev) => ({ ...prev, connectionError: error as Error, isLoadingBlockchainData: false }));
+        setState((prev) => ({ ...prev, connectionError: error instanceof Error ? error : new Error(error), isLoadingBlockchainData: false }));
       }
     };
 
@@ -60,7 +62,9 @@ const useBlockchain = () => {
 
   const executeContractTransaction = async (methodName: string, parameters: any[], etherValue = '0') => {
     if (!state.web3Instance || !state.userAccounts) {
-      throw new Error('Web3 instance or user accounts not initialized.');
+      const error = new Error('Web3 instance or user accounts not initialized.');
+      setState((prev) => ({ ...prev, connectionError: error }));
+      throw error;
     }
 
     let transactionResult = null;
@@ -70,9 +74,10 @@ const useBlockchain = () => {
       transactionResult = await state.medicalRecordContract.methods[methodName](...parameters)
                                      .send({ from: state.userAccounts[0], gas: gasEstimate, value: etherValue });
     } catch (error) {
-      console.error(`Error sending transaction for method ${methodName}: ${error}`);
-      setState((prev) => ({ ...prev, connectionError: error as Error }));
-      throw error;
+      const transactionError = new Error(`Error sending transaction for method ${methodName}: ${error}`);
+      console.error(transactionError);
+      setState((prev) => ({ ...prev, connectionError: transactionError }));
+      throw transactionError;
     }
 
     return transactionResult;
@@ -80,16 +85,19 @@ const useBlockchain = () => {
 
   const invokeContractQuery = async (methodName: string, parameters: any[]) => {
     if (!state.medicalRecordContract) {
-      throw new Error('Medical record contract not initialized.');
+      const error = new Error('Medical record contract not initialized.');
+      setState((prev) => ({ ...prev, connectionError: error }));
+      throw error;
     }
 
     let queryResult = null;
     try {
       queryResult = await state.medicalRecordContract.methods[methodName](...parameters).call();
     } catch (error) {
-      console.error(`Error invoking contract method ${methodName}: ${error}`);
-      setState((prev) => ({ ...prev, connectionError: error as Error }));
-      throw error;
+      const queryError = new Error(`Error invoking contract method ${methodName}: ${error}`);
+      console.error(queryError);
+      setState((prev) => ({ ...prev, connectionError: queryError }));
+      throw queryError;
     }
 
     return queryResult;
