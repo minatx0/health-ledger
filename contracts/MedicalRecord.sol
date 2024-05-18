@@ -17,7 +17,7 @@ contract MedicalRecord {
 
     mapping(uint => Record) private records;
     mapping(address => Role) private roles;
-    mapping(uint => Comment[]) private recordComments; // Existing mapping for record comments
+    mapping(uint => Comment[]) private recordComments; 
     uint private recordCounter;
 
     modifier onlyDoctor() {
@@ -26,6 +26,10 @@ contract MedicalRecord {
     }
 
     modifier onlyAuthorized(uint _recordId) {
+        require(
+            _recordId < recordCounter,
+            "Record does not exist"
+        );
         require(
             records[_recordId].patient == msg.sender || roles[msg.sender] == Role.Doctor || roles[msg.sender] == Role.Nurse,
             "Unauthorized action"
@@ -37,7 +41,7 @@ contract MedicalRecord {
     event RecordUpdated(uint indexed recordId, string newData, address indexed updatedBy);
     event RoleStatusChanged(address user, Role role);
     event CommentAdded(uint indexed recordId, uint commentId, string commentText, address commenter);
-    event CommentDeleted(uint indexed recordId, uint commentId); // New event for comment deletion
+    event CommentDeleted(uint indexed recordId, uint commentId); 
 
     constructor() {
         // Set the deployer as a doctor.
@@ -61,8 +65,7 @@ contract MedicalRecord {
         emit RecordUpdated(_recordId, _newData, msg.sender);
     }
 
-    function addCommentToRecord(uint _recordId, string memory _commentText) external {
-        require(roles[msg.sender] == Role.Doctor || roles[msg.sender] == Role.Nurse, "Caller lacks commenting privileges");
+    function addCommentToRecord(uint _recordId, string memory _commentText) external onlyAuthorized(_recordId) {
         Comment memory newComment = Comment({id: recordComments[_recordId].length, commentText: _commentText, commenter: msg.sender});
         recordComments[_recordId].push(newComment);
         emit CommentAdded(_recordId, newComment.id, _commentText, msg.sender);
@@ -70,11 +73,19 @@ contract MedicalRecord {
 
     function deleteComment(uint _recordId, uint _commentId) external {
         require(
+            _recordId < recordCounter,
+            "Record does not exist"
+        );
+        require(
+            _commentId < recordComments[_recordId].length,
+            "Comment does not exist"
+        );
+        require(
             recordComments[_recordId][_commentId].commenter == msg.sender || roles[msg.sender] == Role.Doctor,
             "Unauthorized deletion attempt"
         );
 
-        delete recordComments[_recordId][_commentId]; // This marks the slot as deleted. It won't actually remove the item and reindex the array
+        delete recordComments[_recordId][_commentId]; 
     
         emit CommentDeleted(_recordId, _commentId);
     }
@@ -87,6 +98,10 @@ contract MedicalRecord {
         string[] memory recordsData = new string[](_recordIds.length);
         for(uint i = 0; i < _recordIds.length; i++) {
             require(
+                _recordIds[i] < recordCounter,
+                "One of the records does not exist"
+            );
+            require(
                 records[_recordIds[i]].patient == msg.sender || roles[msg.sender] == Role.Doctor || roles[msg.sender] == Role.Nurse,
                 "Unauthorized access to a record"
             );
@@ -96,6 +111,10 @@ contract MedicalRecord {
     }
 
     function getComments(uint _recordId) external view onlyAuthorized(_recordId) returns (Comment[] memory) {
+        require(
+            _recordId < recordCounter,
+            "Record does not exist"
+        );
         return recordComments[_recordId];
     }
 }
