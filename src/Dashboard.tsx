@@ -25,6 +25,44 @@ const currentUser: User = {
   role: 'admin',
 };
 
+const MedicalRecordsTable: React.FC<{ medicalRecords: MedicalRecord[], onRequestUpdate: (record: MedicalRecord) => void }> = ({ medicalRecords, onRequestUpdate }) => {
+  const canRequestRecordUpdate = React.useContext(PermissionsContext).canRequestRecordUpdate;
+  return (
+    <Table striped bordered hover>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Patient Name</th>
+          <th>Doctor Name</th>
+          <th>Description</th>
+          <th>Date</th>
+          {canRequestRecordUpdate && <th>Actions</th>}
+        </tr>
+      </thead>
+      <tbody>
+        {medicalRecords.map((record, index) => (
+          <tr key={record.id}>
+            <td>{index + 1}</td>
+            <td>{record.patientName}</td>
+            <td>{record.doctorName}</td>
+            <td>{record.description}</td>
+            <td>{record.date}</td>
+            {canRequestRecordUpdate && (
+              <td>
+                <Button variant="primary" onClick={() => onRequestUpdate(record)}>
+                  Request Update
+                </Button>
+              </td>
+            )}
+          </tr>
+        ))}
+      </tbody>
+    </Table>
+  );
+};
+
+const PermissionsContext = React.createContext<{[key: string]: boolean}>({});
+
 const Dashboard: React.FC = () => {
   const [medicalRecords, setMedicalRecords] = React.useState<MedicalRecord[]>([]);
   const [showModal, setShowModal] = React.useState(false);
@@ -37,80 +75,54 @@ const Dashboard: React.FC = () => {
     setMedicalRecords(data);
   };
 
-  const updateRecord = async (record: MedicalRecord) => {
+  const updateRecord = async (record: MedicalRecord | null) => {
+    if (record) {
+      // Assume update logic is implemented here
+    }
     setShowModal(false);
   };
-
-  const checkPermission = (permission: string) => permissions[permission];
 
   React.useEffect(() => {
     fetchMedicalRecords();
     setPermissions({
       canViewRecords: true,
-      canRequestRecordUpdate: true,
+      canRequestRecordUpdate: currentUser.role === 'admin' || currentUser.role === 'doctor',
       canManagePermissions: currentUser.role === 'admin',
     });
   }, []);
 
   return (
     <Container>
-      {checkPermission('canViewRecords') && (
-        <Table striped bordered hover>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Patient Name</th>
-              <th>Doctor Name</th>
-              <th>Description</th>
-              <th>Date</th>
-              {checkPermission('canRequestRecordUpdate') && <th>Actions</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {medicalRecords.map((record, index) => (
-              <tr key={record.id}>
-                <td>{index + 1}</td>
-                <td>{record.patientName}</td>
-                <td>{record.doctorName}</td>
-                <td>{record.description}</td>
-                <td>{record.date}</td>
-                {checkPermission('canRequestRecordUpdate') && (
-                  <td>
-                    <Button variant="primary" onClick={() => {
-                      setEditRecord(record);
-                      setShowModal(true);
-                    }}>
-                      Request Update
-                    </Button>
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </Table>
-      )}
+      <PermissionsContext.Provider value={permissions}>
+        {permissions.canViewRecords && (
+          <MedicalRecordsTable 
+            medicalRecords={medicalRecords} 
+            onRequestUpdate={(record) => { setEditRecord(record); setShowModal(true); }} 
+          />
+        )}
 
-      <Modal show={showModal} onHide={() => setShowModal(false)}>
-        <Modal.Header closeButton>
-          <Modal.Title>Request Record Update</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          {editRecord && (
-            <FormGroup>
-              <FormLabel>Description</FormLabel>
-              <FormControl as="textarea" rows={3} defaultValue={editRecord.description} />
-            </FormGroup>
-          )}
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowModal(false)}>
-            Close
-          </Button>
-          <Button variant="primary" onClick={() => updateRecord(editRecord)}>
-            Save Changes
-          </Button>
-        </Modal.Footer>
-      </Modal>
+        <Modal show={showModal} onHide={() => setShowModal(false)}>
+          <Modal.Header closeButton>
+            <Modal.Title>Request Record Update</Modal.Title>
+          </Modal.Header>
+          <Modal.Body>
+            {editRecord && (
+              <FormGroup>
+                <FormLabel>Description</FormLabel>
+                <FormControl as="textarea" rows={3} defaultValue={editRecord.description} />
+              </FormGroup>
+            )}
+          </Modal.Body>
+          <Modal.Footer>
+            <Button variant="secondary" onClick={() => setShowModal(false)}>
+              Close
+            </Button>
+            <Button variant="primary" onClick={() => updateRecord(editRecord)}>
+              Save Changes
+            </Button>
+          </Modal.Footer>
+        </Modal>
+      </PermissionsContext.Provider>
     </Container>
   );
 };
