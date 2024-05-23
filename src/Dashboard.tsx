@@ -25,8 +25,17 @@ const currentUser: User = {
   role: 'admin',
 };
 
+const useLogger = () => {
+  const log = React.useCallback((...messages: any[]) => {
+    console.log(new Date().toISOString(), ...messages);
+  }, []);
+
+  return { log };
+};
+
 const MedicalRecordsTable: React.FC<{ medicalRecords: MedicalRecord[], onRequestUpdate: (record: MedicalRecord) => void }> = ({ medicalRecords, onRequestUpdate }) => {
   const canRequestRecordUpdate = React.useContext(PermissionsContext).canRequestRecordUpdate;
+  
   return (
     <Table striped bordered hover>
       <thead>
@@ -69,15 +78,19 @@ const Dashboard: React.FC = () => {
   const [editRecord, setEditRecord] = React.useState<MedicalRecord | null>(null);
   const [permissions, setPermissions] = React.useState<{[key: string]: boolean}>({});
 
+  const { log } = useLogger();
+
   const fetchMedicalRecords = async () => {
+    log('Fetching medical records...');
     const response = await fetch(`${API_URL}/medicalRecords`);
     const data = await response.json();
     setMedicalRecords(data);
+    log('Fetched medical records:', data);
   };
 
   const updateRecord = async (record: MedicalRecord | null) => {
     if (record) {
-      // Assume update logic is implemented here
+      log('Updating record:', record);
     }
     setShowModal(false);
   };
@@ -89,15 +102,15 @@ const Dashboard: React.FC = () => {
       canRequestRecordUpdate: currentUser.role === 'admin' || currentUser.role === 'doctor',
       canManagePermissions: currentUser.role === 'admin',
     });
-  }, []);
-
+  }, [log]);
+  
   return (
     <Container>
       <PermissionsContext.Provider value={permissions}>
         {permissions.canViewRecords && (
           <MedicalRecordsTable 
             medicalRecords={medicalRecords} 
-            onRequestUpdate={(record) => { setEditRecord(record); setShowModal(true); }} 
+            onRequestUpdate={(record) => { setEditRecord(record); setShowModal(true); log('Requesting update for record:', record); }}
           />
         )}
 
