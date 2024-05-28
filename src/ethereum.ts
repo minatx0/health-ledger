@@ -1,6 +1,5 @@
 import Web3 from 'web3';
 import { AbiItem } from 'web3-utils';
-
 import dotenv from 'dotenv';
 
 dotenv.config();
@@ -22,16 +21,16 @@ export const handleError = (error: Error): void => {
 export const sendEther = async (fromAddress: string, toAddress: string, amountInEther: string, privateKey: string) => {
     try {
         const value = toWei(amountInEther);
-        const nonce = await web3.eth.getTransactionCount(fromaddr, 'latest');
+        const nonce = await web3.eth.getTransactionCount(fromAddress, 'latest'); // Fixed variable name to 'fromAddress'
         const signedTx = await web3.eth.accounts.signTransaction({
             from: fromAddress,
             to: toAddress,
             value: value,
             gas: 2000000,
-            nonce: nonce
+            nonce
         }, privateKey);
 
-        const receipt = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
+        const receipt = await web3.eth.sendSignedTransaction(signedTx.rawTransaction || '');
 
         return receipt;
     } catch (error) {
@@ -54,14 +53,43 @@ export const interactWithContract = async (contractABI: AbiItem[], contractAddre
         const nonce = await web3.eth.getTransactionCount(fromAddress, 'latest');
         const signedTx = await web3.eth.accounts.signTransaction({
             to: contractAddress,
-            data: data,
+            data,
             gas: 2000000,
-            nonce: nonce
+            nonce
         }, privateKey);
 
-        const receipt = await web3.eth.sendSignedTransaction(signedTx.rawTransaction);
+        const receipt = await web3.eth.sendSignedTransaction(signedTx.rawTransaction || '');
 
         return receipt;
+    } catch (error) {
+        handleError(error);
+        throw error;
+    }
+};
+
+// New Function
+export const batchSendEther = async (fromAddress: string, transactions: {toAddress: string, amountInEther: string}[], privateKey: string) => {
+    try {
+        const nonceStart = await web3.eth.getTransactionCount(fromAddress, 'latest');
+
+        const receipts = [];
+        for (let i = 0; i < transactions.length; i++) {
+            const {toAddress, amountInEther} = transactions[i];
+            const value = toWei(amountInEther);
+            const nonce = nonceStart + i;
+            const signedTx = await web3.eth.accounts.signTransaction({
+                from: fromAddress,
+                to: toAddress,
+                value,
+                gas: 2000000,
+                nonce
+            }, privateKey);
+
+            const receipt = await web3.eth.sendSignedTransaction(signedTx.rawTransaction || '');
+            receipts.push(receipt);
+        }
+
+        return receipts;
     } catch (error) {
         handleError(error);
         throw error;
