@@ -12,6 +12,7 @@ interface PatientRecord {
 const PatientRecords: React.FC = () => {
   const [records, setRecords] = useState<PatientRecord[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [filter, setFilter] = useState<string>('');
 
   const logActivity = (message: string) => {
     console.log(`[${new Date().toISOString()}] - ${message}`);
@@ -45,6 +46,14 @@ const PatientRecords: React.FC = () => {
     console.log(`Sharing record ${recordId}`);
   };
 
+  const handleFilterChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    setFilter(event.target.value);
+  };
+
+  const filteredRecords = records.filter(record =>
+    record.condition.toLowerCase().includes(filter.toLowerCase())
+  );
+
   if (loading) {
     return <div>Loading records...</div>;
   }
@@ -52,10 +61,16 @@ const PatientRecords: React.FC = () => {
   return (
     <div>
       <h1>Patient Records</h1>
-      {records.length === 0 ? (
+      <input
+        type="text"
+        value={filter}
+        onChange={handleFilterChange}
+        placeholder="Filter by condition"
+      />
+      {filteredRecords.length === 0 ? (
         <p>No records to display.</p>
       ) : (
-        records.map((record) => (
+        filteredRecords.map((record) => (
           <div key={record.id}>
             <h2>{record.name}</h2>
             <p>Age: {record.age}</p>
