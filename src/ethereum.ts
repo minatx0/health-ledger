@@ -4,93 +4,104 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-const web3 = new Web3(process.env.ETH_NODE_URL);
+const web3Instance = new Web3(process.env.ETH_NODE_URL);
 
-export const convertEthToWei = (ethAmount: string): string => {
-    return web3.utils.toWei(ethAmount, 'ether');
+export const convertEtherToWei = (etherAmount: string): string => {
+    return web3Instance.utils.toWei(etherAmount, 'ether');
 };
 
-export const convertWeiToEth = (weiAmount: string): string => {
-    return web3.utils.fromWei(weiAmount, 'ether');
+export const convertWeiToEther = (weiAmount: string): string => {
+    return web3Instance.utils.fromWei(weiAmount, 'ether');
 };
 
-export const logBlockchainError = (error: Error): void => {
-    console.error("Blockchain error encountered: ", error.message);
+export const handleErrorInBlockchainOperation = (error: Error): void => {
+    console.error("Encountered blockchain error: ", error.message);
 };
 
-export const transferEther = async (senderAddress: string, recipientAddress: string, amountInEther: string, privateKey: string) => {
+export const sendEtherBetweenAddresses = async (fromAddress: string, toAddress: string, etherAmount: string, senderPrivateKey: string) => {
     try {
-        const valueInWei = convertEthToWei(amountInEther);
-        const nonce = await web3.eth.getTransactionCount(senderAddress, 'latest'); 
-        const signedTransaction = await web3.eth.accounts.signTransaction({
-            from: senderAddress,
-            to: recipientAddress,
-            value: valueInWei,
+        const amountInWei = convertEtherToWei(etherAmount);
+        const txnNonce = await web3Instance.eth.getTransactionCount(fromAddress, 'latest'); 
+        const signedTxn = await web3Instance.eth.accounts.signTransaction({
+            from: fromAddress,
+            to: toAddress,
+            value: amountInWei,
             gas: 2000000,
-            nonce
-        }, privateKey);
+            nonce: txnNonce
+        }, senderPrivateKey);
 
-        const transactionReceipt = await web3.eth.sendSignedTransaction(signedTransaction.rawTransaction || '');
+        const txnReceipt = await web3Instance.eth.sendSignedTransaction(signedTxn.rawTransaction || '');
 
-        return transactionReceipt;
+        return txnReceipt;
     } catch (error) {
-        logBlockchainError(error);
+        handleErrorInBlockchainOperation(error);
         throw error;
     }
 };
 
-export const getEventData = <T>(eventResult: any, eventName: string): T | null => {
-    if (!eventResult.events[eventName]) return null;
+export const extractEventData = <T>(txResult: any, eventName: string): T | null => {
+    if (!txResult.events[eventName]) return null;
 
-    return eventResult.events[eventName].returnValues as T;
+    return txResult.events[eventName].returnValues as T;
 };
 
-export const executeSmartContractFunction = async (smartContractABI: AbiItem[], smartContractAddress: string, functionName: string, parameters: any[], callerAddress: string, privateKey: string) => {
+export const invokeSmartContractMethod = async (
+    contractABI: AbiItem[],
+    contractAddress: string,
+    methodName: string,
+    methodParameters: any[],
+    transactionCallerAddress: string,
+    callerPrivateKey: string
+) => {
     try {
-        const smartContract = new web3.eth.Contract(smartContractABI, smartContractAddress);
-        const functionData = smartContract.methods[functionName](...parameters).encodeABI();
+        const contract = new web3Instance.eth.Contract(contractABI, contractAddress);
+        const encodedFunctionCall = contract.methods[methodName](...methodParameters).encodeABI();
 
-        const nonce = await web3.eth.getTransactionCount(callerAddress, 'latest');
-        const signedTransaction = await web3.eth.accounts.signTransaction({
-            to: smartContractAddress,
-            data: functionData,
+        const txnNonce = await web3Instance.eth.getTransactionCount(transactionCallerAddress, 'latest');
+        const signedTxn = await web3Instance.eth.accounts.signTransaction({
+            to: contractAddress,
+            data: encodedFunctionCall,
             gas: 2000000,
-            nonce
-        }, privateKey);
+            nonce: txnNonce
+        }, callerPrivateKey);
 
-        const transactionReceipt = await web3.eth.sendSignedTransaction(signedTransaction.rawTransaction || '');
+        const txnReceipt = await web3Instance.eth.sendSignedTransaction(signedTxn.rawTransaction || '');
 
-        return transactionReceipt;
+        return txnReceipt;
     } catch (error) {
-        logBlockchainError(error);
+        handleErrorInBlockchainOperation(error);
         throw error;
     }
 };
 
-export const batchTransferEther = async (senderAddress: string, transactions: {recipientAddress: string, amountInEther: string}[], privateKey: string) => {
+export const performBatchEtherTransfers = async (
+    senderWalletAddress: string,
+    transferDetails: {recipientWalletAddress: string, etherAmount: string}[],
+    senderPrivateKey: string
+) => {
     try {
-        const initialNonce = await web3.eth.getTransactionCount(senderAddress, 'latest');
-        const transferReceipts = [];
+        const startingNonce = await web3Instance.eth.getTransactionCount(senderWalletAddress, 'latest');
+        const receipts = [];
 
-        for (let i = 0; i < transactions.length; i++) {
-            const {recipientAddress, amountInEther} = transactions[i];
-            const valueInWei = convertEthToWei(amountInEther);
-            const nonce = initialNonce + i;
-            const signedTransaction = await web3.eth.accounts.signTransaction({
-                from: senderAddress,
-                to: recipientAddress,
-                value: valueInWei,
+        for (let i = 0; i < transferDetails.length; i++) {
+            const {recipientWalletAddress, etherAmount} = transferDetails[i];
+            const amountInWei = convertEtherToWei(etherAmount);
+            const currentNonce = startingNonce + i;
+            const signedTxn = await web3Instance.eth.accounts.signTransaction({
+                from: senderWalletAddress,
+                to: recipientWalletAddress,
+                value: amountInWei,
                 gas: 2000000,
-                nonce
-            }, privateKey);
+                nonce: currentNonce
+            }, senderPrivateKey);
 
-            const transactionReceipt = await web3.eth.sendSignedTransaction(signedTransaction.rawTransaction || '');
-            transferReceipts.push(transactionReceipt);
+            const txnReceipt = await web3Instance.eth.sendSignedTransaction(signedTxn.rawTransaction || '');
+            receipts.push(txnReceipt);
         }
 
-        return transferReceipts;
+        return receipts;
     } catch (error) {
-        logBlockchainError(error);
+        handleErrorInBlockchainOperation(error);
         throw error;
     }
 };
